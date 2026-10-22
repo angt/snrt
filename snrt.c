@@ -872,11 +872,12 @@ fmt_n(u64 v, i32 k, char *w) {
     while (k >= 4) {
         u64 q = v / 10000;
         u32 r = (u32)(v - q * 10000);
+        u32 rp = r / 100;
         v = q;
         k -= 4;
         w -= 4;
-        put_pair(w, dig2, r / 100);
-        put_pair(w + 2, (const char *)lo2, r);
+        put_pair(w, dig2, rp);
+        put_pair(w + 2, dig2, r - 100 * rp);
     }
     while (k >= 2) {
         u64 p = v % 100;

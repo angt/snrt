@@ -1,5 +1,3 @@
-#include "snrt.h"
-
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -14,48 +12,24 @@ must(int cond, const char *what) {
     }
 }
 
-static void
-f16_text_of(unsigned u, char *out) {
-    f16b s = from_f16((f16)u);
-    strcpy(out, s.b);
-}
-
-static void
-bf16_text_of(unsigned u, char *out) {
-    bf16b s = from_bf16((bf16)u);
-    strcpy(out, s.b);
-}
-
-static void
-e5m2_text_of(unsigned u, char *out) {
-    e5m2b s = from_e5m2((e5m2)u);
-    strcpy(out, s.b);
-}
-
-static void
-e4m3_text_of(unsigned u, char *out) {
-    e4m3b s = from_e4m3((e4m3)u);
-    strcpy(out, s.b);
-}
-
-static void
-e2m1_text_of(unsigned u, char *out) {
-    e2m1b s = from_e2m1((e2m1)u);
-    strcpy(out, s.b);
-}
+typedef enum {
+    KIND_IEEE,     // inf and nan at the all-ones exponent
+    KIND_FN,       // e4m3fn saturates and has one nan pattern
+    KIND_FINITE    // e2m1 is finite only and saturates
+} fmt_kind;
 
 static const struct {
     const char *name;
     int ebits, sbits;
-    void (*text)(unsigned u, char *out);
+    fmt_kind kind;
 } formats[] = {
-    { "F64",  11, 52, NULL },          // IEEE binary64
-    { "F32",   8, 23, NULL },          // IEEE binary32
-    { "F16",   5, 10, f16_text_of },   // IEEE binary16
-    { "BF16",  8,  7, bf16_text_of },  // bfloat16
-    { "E5M2",  5,  2, e5m2_text_of },  // OCP float8 e5m2
-    { "E4M3",  4,  3, e4m3_text_of },  // OCP float8 e4m3fn
-    { "E2M1",  2,  1, e2m1_text_of },  // OCP float4 e2m1
+    { "F64",  11, 52, KIND_IEEE },     // IEEE binary64
+    { "F32",   8, 23, KIND_IEEE },     // IEEE binary32
+    { "F16",   5, 10, KIND_IEEE },     // IEEE binary16
+    { "BF16",  8,  7, KIND_IEEE },     // bfloat16
+    { "E5M2",  5,  2, KIND_IEEE },     // OCP float8 e5m2
+    { "E4M3",  4,  3, KIND_FN },       // OCP float8 e4m3fn
+    { "E2M1",  2,  1, KIND_FINITE },   // OCP float4 e2m1
 };
 
 enum { NFORMATS = (int)(sizeof formats / sizeof *formats) };
@@ -221,6 +195,194 @@ ceil_pos(double x) {
     return (double)f == x ? f : f + 1;
 }
 
+static int
+dec_digits(uint64_t v) {
+    int n = 1;
+    while (v >= 10) {
+        v /= 10;
+        n++;
+    }
+    return n;
+}
+
+static int
+cmp_x_edge(uint64_t c, int t, uint64_t odd, int sh) {
+    big a = { .d = { (uint32_t)c }, .n = 1 };
+    big b = { .d = { (uint32_t)odd }, .n = 1 };
+    if (t > 0) {
+        for (int i = 0; i < t; i++) {
+            big_mul_small(&a, 5);
+        }
+    } else {
+        for (int i = 0; i < -t; i++) {
+            big_mul_small(&b, 5);
+        }
+    }
+    if (t >= sh) {
+        for (int i = 0; i < t - sh; i++) {
+            big_shl1(&a);
+        }
+    } else {
+        for (int i = 0; i < sh - t; i++) {
+            big_shl1(&b);
+        }
+    }
+    return big_cmp(&a, &b);
+}
+
+static int
+rounds_to(uint64_t c, int t, uint64_t m, int E, int binade_low) {
+    uint64_t lo = binade_low ? 4 * m - 1 : 4 * m - 2;
+    int a = cmp_x_edge(c, t, lo, E - 2);
+    if (a < 0 || (a == 0 && (m & 1))) {
+        return 0;
+    }
+    int b = cmp_x_edge(c, t, 4 * m + 2, E - 2);
+    return b < 0 || (b == 0 && !(m & 1));
+}
+
+static void
+fmt_text(uint64_t d, int e, char *out) {
+    while (d >= 10 && d % 10 == 0) {
+        d /= 10;
+        e++;
+    }
+    int n = dec_digits(d);
+    int x = e + n - 1;
+    int a = x < 0 ? -x : x;
+    int ed = dec_digits((uint64_t)a);
+    int sci_len = n + (n > 1 ? 1 : 0) + 1 + (x < 0 ? 1 : 0) + ed;
+    int fixed_len;
+    if (x >= 0) {
+        fixed_len = n <= x + 1 ? x + 1 : n + 1;
+    } else {
+        fixed_len = 2 + (-x - 1) + n;
+    }
+    char digs[32];
+    sprintf(digs, "%llu", (unsigned long long)d);
+    char *w = out;
+    if (sci_len < fixed_len) {
+        *w++ = digs[0];
+        if (n > 1) {
+            *w++ = '.';
+            for (int i = 1; i < n; i++) {
+                *w++ = digs[i];
+            }
+        }
+        *w++ = 'e';
+        if (x < 0) {
+            *w++ = '-';
+        }
+        sprintf(w, "%d", a);
+        return;
+    }
+    if (x >= 0 && n <= x + 1) {
+        for (int i = 0; i < n; i++) {
+            *w++ = digs[i];
+        }
+        for (int i = n; i <= x; i++) {
+            *w++ = '0';
+        }
+    } else if (x >= 0) {
+        for (int i = 0; i <= x; i++) {
+            *w++ = digs[i];
+        }
+        *w++ = '.';
+        for (int i = x + 1; i < n; i++) {
+            *w++ = digs[i];
+        }
+    } else {
+        *w++ = '0';
+        *w++ = '.';
+        for (int i = 0; i < -x - 1; i++) {
+            *w++ = '0';
+        }
+        for (int i = 0; i < n; i++) {
+            *w++ = digs[i];
+        }
+    }
+    *w = '\0';
+}
+
+static void
+pattern_text(int ebits, int sbits, fmt_kind kind, unsigned u, char *out) {
+    int bias = (1 << (ebits - 1)) - 1;
+    unsigned sign = (u >> (ebits + sbits)) & 1;
+    unsigned expf = (u >> sbits) & ((1u << ebits) - 1);
+    unsigned frac = u & ((1u << sbits) - 1);
+    unsigned emaxf = (1u << ebits) - 1;
+    unsigned smask = (1u << sbits) - 1;
+    if (kind == KIND_IEEE && expf == emaxf) {
+        if (frac) {
+            memcpy(out, "nan", sizeof "nan");
+        } else if (sign) {
+            memcpy(out, "-inf", sizeof "-inf");
+        } else {
+            memcpy(out, "inf", sizeof "inf");
+        }
+        return;
+    }
+    if (kind == KIND_FN && expf == emaxf && frac == smask) {
+        memcpy(out, "nan", sizeof "nan");
+        return;
+    }
+    uint64_t m;
+    int E;
+    if (!expf) {
+        m = frac;
+        E = 1 - bias - sbits;
+    } else {
+        m = frac | (1u << sbits);
+        E = (int)expf - bias - sbits;
+    }
+    if (!m) {
+        if (sign) {
+            memcpy(out, "-0", sizeof "-0");
+        } else {
+            memcpy(out, "0", sizeof "0");
+        }
+        return;
+    }
+    double v = ldexp((double)m, E);
+    int binade_low = expf >= 2 && m == ((uint64_t)1 << sbits);
+    char *w = out;
+    if (sign) {
+        *w++ = '-';
+    }
+    for (int k = 1; k <= 7; k++) {
+        char tmp[64];
+        snprintf(tmp, sizeof tmp, "%.*e", k - 1, v);
+        uint64_t n0 = 0;
+        int q0 = 0;
+        const char *p = tmp;
+        for (; *p != 'e'; p++) {
+            if (*p >= '0' && *p <= '9') {
+                n0 = n0 * 10 + (uint64_t)(*p - '0');
+            }
+        }
+        p++;
+        int negq = *p == '-';
+        if (*p == '-' || *p == '+') {
+            p++;
+        }
+        for (; *p >= '0' && *p <= '9'; p++) {
+            q0 = q0 * 10 + (*p - '0');
+        }
+        if (negq) {
+            q0 = -q0;
+        }
+        int t = q0 - k + 1;
+        const uint64_t cs[3] = { n0, n0 - 1, n0 + 1 };
+        for (int i = 0; i < 3; i++) {
+            if (rounds_to(cs[i], t, m, E, binade_low)) {
+                fmt_text(cs[i], t, w);
+                return;
+            }
+        }
+    }
+    must(0, "a pattern has no round-trip text");
+}
+
 int
 main(void) {
     double log10_2 = log10(2.0);
@@ -332,16 +494,6 @@ main(void) {
     }
     fprintf(f, "\n");
 
-    fprintf(f, "static const char lo2[10000][2] = {\n");
-    for (int i = 0; i < 10000; i += 10) {
-        fprintf(f, "   ");
-        for (int j = i; j < i + 10; j++) {
-            fprintf(f, " \"%02d\",", j % 100);
-        }
-        fprintf(f, "\n");
-    }
-    fprintf(f, "};\n\n");
-
     for (int fi = 0; fi < NFORMATS; fi++) {
         int width = formats[fi].ebits + formats[fi].sbits + 1;
         if (width > 8) {
@@ -353,7 +505,8 @@ main(void) {
         char rows[256][40];
         unsigned w = 1;
         for (unsigned u = 0; u < npat; u++) {
-            formats[fi].text(u, rows[u]);
+            pattern_text(formats[fi].ebits, formats[fi].sbits,
+                         formats[fi].kind, u, rows[u]);
             unsigned len = (unsigned)strlen(rows[u]) + 1;
             if (len > w) {
                 w = len;
