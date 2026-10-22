@@ -34,6 +34,8 @@
 #define no_inline
 #endif
 
+#define COUNT(a) (sizeof(a) / sizeof((a)[0]))
+
 #if defined(__SIZEOF_INT128__) && !defined(SNRT_NO_INT128)
 #define SNRT_HAS_U128 1
 #else
@@ -168,7 +170,7 @@ div5(u64 hi, u64 lo, i32 c) {
     } else {
         over = T[w + 1];
     }
-    for (i32 i = w + 2; i < 4; i++) {
+    for (i32 i = w + 2; i < (i32)COUNT(T); i++) {
         over |= T[i];
     }
     if (unlikely(over)) {
@@ -797,7 +799,7 @@ scale_bn(const bn *M, i32 k, i32 s, pow5_cache *pc) {
         }
         u64 div = pow5_u64[t];
         u64 rem = 0;
-        for (i32 i = 2; i >= 0; i--) {
+        for (i32 i = (i32)COUNT(w) - 1; i >= 0; i--) {
             qr d = div5(rem, w[i], t);
             w[i] = d.q;
             rem = d.r;

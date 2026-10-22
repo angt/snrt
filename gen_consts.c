@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define COUNT(a) (sizeof(a) / sizeof((a)[0]))
+
 static void
 must(int cond, const char *what) {
     if (!cond) {
@@ -32,7 +34,7 @@ static const struct {
     { "E2M1",  2,  1, KIND_FINITE },   // OCP float4 e2m1
 };
 
-enum { NFORMATS = (int)(sizeof formats / sizeof *formats) };
+enum { NFORMATS = (int)COUNT(formats) };
 
 enum {
     POW5_MAX = 399,
@@ -259,7 +261,7 @@ fmt_text(uint64_t d, int e, char *out) {
         fixed_len = 2 + (-x - 1) + n;
     }
     char digs[32];
-    sprintf(digs, "%llu", (unsigned long long)d);
+    snprintf(digs, sizeof digs, "%llu", (unsigned long long)d);
     char *w = out;
     if (sci_len < fixed_len) {
         *w++ = digs[0];
@@ -273,7 +275,8 @@ fmt_text(uint64_t d, int e, char *out) {
         if (x < 0) {
             *w++ = '-';
         }
-        sprintf(w, "%d", a);
+        /* the exponent digits are the last ed bytes of out */
+        snprintf(w, (size_t)ed + 1, "%d", a);
         return;
     }
     if (x >= 0 && n <= x + 1) {
@@ -373,7 +376,7 @@ pattern_text(int ebits, int sbits, fmt_kind kind, unsigned u, char *out) {
         }
         int t = q0 - k + 1;
         const uint64_t cs[3] = { n0, n0 - 1, n0 + 1 };
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < (int)COUNT(cs); i++) {
             if (rounds_to(cs[i], t, m, E, binade_low)) {
                 fmt_text(cs[i], t, w);
                 return;
