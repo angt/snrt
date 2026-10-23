@@ -28,9 +28,9 @@ A simple example, showing how to convert a float to string and back:
 
 int main(void) {
     float x = 0.1f;
-    f32b s = from_f32(x);
+    b32 s = from_f32(x);
     printf("%s\n", s.b);
-    float y = to_f32(s);
+    float y = to_f32(s.b);
     return y != x;
 }
 ```
@@ -39,22 +39,22 @@ The exit status is 0 only when the round trip held:
 
     gcc -O2 -o demo demo.c && ./demo
 
-Every type T gets one text buffer type `Tb` and two functions that
-are exact inverses of each other:
+Every type T has two functions that are exact inverses of each other,
+sharing one text buffer type `b32`:
 
 ```c
-typedef float snrt_f32;                              // the value
-typedef struct snrt_f32b { char b[24]; } snrt_f32b;  // the text
+typedef float snrt_f32;                            // the value
+typedef struct snrt_b32 { char b[32]; } snrt_b32;  // the text
 
-snrt_f32b snrt_from_f32(snrt_f32 v);   // value -> text
-snrt_f32 snrt_to_f32(snrt_f32b s);     // text  -> value
+snrt_b32  snrt_from_f32(snrt_f32 v);               // value -> text
+snrt_f32  snrt_to_f32(const char *s);              // text  -> value
 ```
 
-The buffer is a plain char array with room for the worst case plus a
-`\0`, so `.b` is a C string and a function can take the struct and
-return it.
+The buffer is a plain char array with room for the worst case of any
+type plus a `\0`, so `.b` is a C string and a function can take the
+struct and return it. `to_T` takes any NUL-terminated string.
 
-By default, short names are used (`f32`, `f32b`, `to_f32`, `from_f32`)
+By default, short names are used (`f32`, `b32`, `to_f32`, `from_f32`)
 with a longer version prefixed by `snrt_`. Define `SNRT_NO_SHORT_NAMES`
 before the include to keep only the `snrt_` names.
 
@@ -72,9 +72,8 @@ before the include to keep only the `snrt_` names.
 | `u8`…  | `uintT_t`  | decimal           |
 | `i8`…  | `intT_t`   | decimal           |
 
-Every row has a text buffer type `Tb` (`f32b`, `u8b`, ...) and the
-pair `from_T` / `to_T`. The 16-bit, 8-bit and 4-bit floats take and
-return raw bits: that is the form memory stores them in.
+Every row has the pair `from_T` / `to_T`. The 16-bit, 8-bit and 4-bit
+floats take and return raw bits.
 
 ## Guarantees
 
@@ -84,8 +83,8 @@ return raw bits: that is the form memory stores them in.
   the same value at that type's own precision. A NaN payload does not
   survive: `nan` is one value in text.
 
-- **Parse is the exact inverse.** `to_T(from_T(v)) == v` for every
-  value, and `from_T(to_T(s)) == s` for every text snrt emits. Parse
+- **Parse is the exact inverse.** `to_T(from_T(v).b) == v` for every
+  value, and `from_T(to_T(s)).b == s` for every text snrt emits. Parse
   accepts the printed forms plus ordinary decimal spelling, rounds once
   at the target type (ties to even), and never detours through double:
   widening to double and rounding that can be a different value (double
@@ -93,21 +92,8 @@ return raw bits: that is the form memory stores them in.
   saturates exactly at the type bounds (or becomes infinity where the
   format has one).
 
-- **The sizes are exact.** Worst case text plus `\0`:
-
-  | type             | max text   | buffer       |
-  |------------------|------------|--------------|
-  | f64              | 24         | `char b[32]` |
-  | f32              | 15         | `char b[24]` |
-  | f16, bf16        | 10         | `char b[16]` |
-  | e5m2             | 7          | `char b[16]` |
-  | e4m3             | 6          | `char b[16]` |
-  | e2m1             | 4          | `char b[8]`  |
-  | u64, i64         | 20         | `char b[24]` |
-  | u32, i32         | 10, 11     | `char b[16]` |
-  | u8, i8, u16, i16 | 3, 4, 5, 6 | `char b[8]`  |
-
-  The buffer is sized in whole 8-byte registers.
+- **The size is exact.** One buffer, `char b[32]`, holds the worst
+  case text of every type plus a `\0`.
 
 - **Spelling.** Shortest digits, then the shorter of fixed and
   scientific notation, ties to fixed. The scientific form keeps one

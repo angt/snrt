@@ -101,14 +101,10 @@ p_f64(void) {
         "42 ", " 42", "1 2",
     };
     for (u32 i = 0; i < COUNT(ok); i++) {
-        f64b t;
-        strcpy(t.b, ok[i].s);
-        chk("f64", ok[i].s, f64_bits(to_f64(t)), ok[i].want);
+        chk("f64", ok[i].s, f64_bits(to_f64(ok[i].s)), ok[i].want);
     }
     for (u32 i = 0; i < COUNT(no); i++) {
-        f64b t;
-        strcpy(t.b, no[i]);
-        chk("f64", no[i], f64_bits(to_f64(t)), 0);
+        chk("f64", no[i], f64_bits(to_f64(no[i])), 0);
     }
     printf("f64 %llu spellings\n", (unsigned long long)(nchk - start));
 }
@@ -136,9 +132,7 @@ p_f32(void) {
         { "-nan",                0xFFC00000u },
     };
     for (u32 i = 0; i < COUNT(ok); i++) {
-        f32b t;
-        strcpy(t.b, ok[i].s);
-        chk("f32", ok[i].s, f32_bits(to_f32(t)), ok[i].want);
+        chk("f32", ok[i].s, f32_bits(to_f32(ok[i].s)), ok[i].want);
     }
     static const row slow[] = {
         { "12345678901234567890",    0x5F2B54AAu },
@@ -148,9 +142,7 @@ p_f32(void) {
         { "99999999999999999999999", 0x65A96816u },
     };
     for (u32 i = 0; i < COUNT(slow); i++) {
-        f32b t;
-        strcpy(t.b, slow[i].s);
-        chk("f32", slow[i].s, f32_bits(to_f32(t)), slow[i].want);
+        chk("f32", slow[i].s, f32_bits(to_f32(slow[i].s)), slow[i].want);
     }
     printf("f32 %llu spellings\n", (unsigned long long)(nchk - start));
 }
@@ -176,9 +168,7 @@ p_f16(void) {
         { "-nan",           0xFE00u },
     };
     for (u32 i = 0; i < COUNT(ok); i++) {
-        f16b t;
-        strcpy(t.b, ok[i].s);
-        chk("f16", ok[i].s, to_f16(t), ok[i].want);
+        chk("f16", ok[i].s, to_f16(ok[i].s), ok[i].want);
     }
     printf("f16 %llu spellings\n", (unsigned long long)(nchk - start));
 }
@@ -201,9 +191,7 @@ p_bf16(void) {
         { "-nan",         0xFFC0u },
     };
     for (u32 i = 0; i < COUNT(ok); i++) {
-        bf16b t;
-        strcpy(t.b, ok[i].s);
-        chk("bf16", ok[i].s, to_bf16(t), ok[i].want);
+        chk("bf16", ok[i].s, to_bf16(ok[i].s), ok[i].want);
     }
     printf("bf16 %llu spellings\n", (unsigned long long)(nchk - start));
 }
@@ -230,9 +218,7 @@ p_e5m2(void) {
         { "-nan",  0xFEu },
     };
     for (u32 i = 0; i < COUNT(ok); i++) {
-        e5m2b t;
-        strcpy(t.b, ok[i].s);
-        chk("e5m2", ok[i].s, to_e5m2(t), ok[i].want);
+        chk("e5m2", ok[i].s, to_e5m2(ok[i].s), ok[i].want);
     }
     printf("e5m2 %llu spellings\n", (unsigned long long)(nchk - start));
 }
@@ -283,16 +269,12 @@ p_e4m3(void) {
         { "-0",    0x80u },
     };
     for (u32 i = 0; i < COUNT(ok); i++) {
-        e4m3b t;
-        strcpy(t.b, ok[i].s);
-        chk("e4m3", ok[i].s, to_e4m3(t), ok[i].want);
+        chk("e4m3", ok[i].s, to_e4m3(ok[i].s), ok[i].want);
     }
     for (i64 v = -600; v <= 600; v++) {
         char buf[8];
         snprintf(buf, sizeof buf, "%lld", (long long)v);
-        e4m3b t;
-        strcpy(t.b, buf);
-        chk("e4m3", buf, to_e4m3(t),
+        chk("e4m3", buf, to_e4m3(buf),
             e4m3_int((u64)(v < 0 ? -v : v)) | (v < 0 ? 0x80u : 0));
     }
     printf("e4m3 %llu spellings\n", (unsigned long long)(nchk - start));
@@ -319,9 +301,7 @@ p_e2m1(void) {
         { "-nan",  0x00u },
     };
     for (u32 i = 0; i < COUNT(ok); i++) {
-        e2m1b t;
-        strcpy(t.b, ok[i].s);
-        chk("e2m1", ok[i].s, to_e2m1(t), ok[i].want);
+        chk("e2m1", ok[i].s, to_e2m1(ok[i].s), ok[i].want);
     }
     printf("e2m1 %llu spellings\n", (unsigned long long)(nchk - start));
 }
@@ -341,9 +321,7 @@ p_u8(void) {
         { "1e5",   0 },
     };
     for (u32 i = 0; i < COUNT(ok); i++) {
-        u8b t;
-        strcpy(t.b, ok[i].s);
-        chk("u8", ok[i].s, to_u8(t), ok[i].want);
+        chk("u8", ok[i].s, to_u8(ok[i].s), ok[i].want);
     }
     printf("u8 %llu spellings\n", (unsigned long long)(nchk - start));
 }
@@ -360,9 +338,7 @@ p_i8(void) {
         { "-1",   0xFFFFFFFFFFFFFFFFull },
     };
     for (u32 i = 0; i < COUNT(ok); i++) {
-        i8b t;
-        strcpy(t.b, ok[i].s);
-        chk("i8", ok[i].s, (u64)(i64)to_i8(t), ok[i].want);
+        chk("i8", ok[i].s, (u64)(i64)to_i8(ok[i].s), ok[i].want);
     }
     printf("i8 %llu spellings\n", (unsigned long long)(nchk - start));
 }
@@ -377,9 +353,7 @@ p_u16(void) {
         { "-1",        0 },
     };
     for (u32 i = 0; i < COUNT(ok); i++) {
-        u16b t;
-        strcpy(t.b, ok[i].s);
-        chk("u16", ok[i].s, to_u16(t), ok[i].want);
+        chk("u16", ok[i].s, to_u16(ok[i].s), ok[i].want);
     }
     printf("u16 %llu spellings\n", (unsigned long long)(nchk - start));
 }
@@ -395,9 +369,7 @@ p_i16(void) {
         { "-32769", 0xFFFFFFFFFFFF8000ull },
     };
     for (u32 i = 0; i < COUNT(ok); i++) {
-        i16b t;
-        strcpy(t.b, ok[i].s);
-        chk("i16", ok[i].s, (u64)(i64)to_i16(t), ok[i].want);
+        chk("i16", ok[i].s, (u64)(i64)to_i16(ok[i].s), ok[i].want);
     }
     printf("i16 %llu spellings\n", (unsigned long long)(nchk - start));
 }
@@ -421,14 +393,10 @@ p_u32(void) {
         "1-2", "--1", " 1", "1 ",
     };
     for (u32 i = 0; i < COUNT(ok); i++) {
-        u32b t;
-        strcpy(t.b, ok[i].s);
-        chk("u32", ok[i].s, to_u32(t), ok[i].want);
+        chk("u32", ok[i].s, to_u32(ok[i].s), ok[i].want);
     }
     for (u32 i = 0; i < COUNT(no); i++) {
-        u32b t;
-        strcpy(t.b, no[i]);
-        chk("u32", no[i], to_u32(t), 0);
+        chk("u32", no[i], to_u32(no[i]), 0);
     }
     printf("u32 %llu spellings\n", (unsigned long long)(nchk - start));
 }
@@ -447,9 +415,7 @@ p_i32(void) {
         { "-2147483649", 0xFFFFFFFF80000000ull },
     };
     for (u32 i = 0; i < COUNT(ok); i++) {
-        i32b t;
-        strcpy(t.b, ok[i].s);
-        chk("i32", ok[i].s, (u64)(i64)to_i32(t), ok[i].want);
+        chk("i32", ok[i].s, (u64)(i64)to_i32(ok[i].s), ok[i].want);
     }
     printf("i32 %llu spellings\n", (unsigned long long)(nchk - start));
 }
@@ -467,9 +433,7 @@ p_u64(void) {
         { "-1",                                          0 },
     };
     for (u32 i = 0; i < COUNT(ok); i++) {
-        u64b t;
-        strcpy(t.b, ok[i].s);
-        chk("u64", ok[i].s, to_u64(t), ok[i].want);
+        chk("u64", ok[i].s, to_u64(ok[i].s), ok[i].want);
     }
     printf("u64 %llu spellings\n", (unsigned long long)(nchk - start));
 }
@@ -492,14 +456,10 @@ p_i64(void) {
         "1-2", "--1", " 1", "1 ",
     };
     for (u32 i = 0; i < COUNT(ok); i++) {
-        i64b t;
-        strcpy(t.b, ok[i].s);
-        chk("i64", ok[i].s, (u64)to_i64(t), ok[i].want);
+        chk("i64", ok[i].s, (u64)to_i64(ok[i].s), ok[i].want);
     }
     for (u32 i = 0; i < COUNT(no); i++) {
-        i64b t;
-        strcpy(t.b, no[i]);
-        chk("i64", no[i], (u64)to_i64(t), 0);
+        chk("i64", no[i], (u64)to_i64(no[i]), 0);
     }
     printf("i64 %llu spellings\n", (unsigned long long)(nchk - start));
 }

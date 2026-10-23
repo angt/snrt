@@ -45,12 +45,12 @@ static void
 rt_e2m1(void) {
     for (u32 x = 0; x < 16; x++) {
         e2m1 v = (e2m1)x;
-        e2m1b t = from_e2m1(v);
-        e2m1 w = to_e2m1(t);
+        b32 t = from_e2m1(v);
+        e2m1 w = to_e2m1(t.b);
         if (w != v) {
             bad("e2m1 to(from(x)) != x", x);
         }
-        e2m1b t2 = from_e2m1(w);
+        b32 t2 = from_e2m1(w);
         if (strcmp(t2.b, t.b) != 0) {
             bad("e2m1 from(to(x)) != x", x);
         }
@@ -65,12 +65,12 @@ rt_e4m3(void) {
             continue;
         }
         e4m3 v = (e4m3)x;
-        e4m3b t = from_e4m3(v);
-        e4m3 w = to_e4m3(t);
+        b32 t = from_e4m3(v);
+        e4m3 w = to_e4m3(t.b);
         if (w != v) {
             bad("e4m3 to(from(x)) != x", x);
         }
-        e4m3b t2 = from_e4m3(w);
+        b32 t2 = from_e4m3(w);
         if (strcmp(t2.b, t.b) != 0) {
             bad("e4m3 from(to(x)) != x", x);
         }
@@ -85,12 +85,12 @@ rt_e5m2(void) {
             continue;
         }
         e5m2 v = (e5m2)x;
-        e5m2b t = from_e5m2(v);
-        e5m2 w = to_e5m2(t);
+        b32 t = from_e5m2(v);
+        e5m2 w = to_e5m2(t.b);
         if (w != v) {
             bad("e5m2 to(from(x)) != x", x);
         }
-        e5m2b t2 = from_e5m2(w);
+        b32 t2 = from_e5m2(w);
         if (strcmp(t2.b, t.b) != 0) {
             bad("e5m2 from(to(x)) != x", x);
         }
@@ -105,12 +105,12 @@ rt_f16(void) {
             continue;
         }
         f16 v = (f16)x;
-        f16b t = from_f16(v);
-        f16 w = to_f16(t);
+        b32 t = from_f16(v);
+        f16 w = to_f16(t.b);
         if (w != v) {
             bad("f16 to(from(x)) != x", x);
         }
-        f16b t2 = from_f16(w);
+        b32 t2 = from_f16(w);
         if (strcmp(t2.b, t.b) != 0) {
             bad("f16 from(to(x)) != x", x);
         }
@@ -125,12 +125,12 @@ rt_bf16(void) {
             continue;
         }
         bf16 v = (bf16)x;
-        bf16b t = from_bf16(v);
-        bf16 w = to_bf16(t);
+        b32 t = from_bf16(v);
+        bf16 w = to_bf16(t.b);
         if (w != v) {
             bad("bf16 to(from(x)) != x", x);
         }
-        bf16b t2 = from_bf16(w);
+        b32 t2 = from_bf16(w);
         if (strcmp(t2.b, t.b) != 0) {
             bad("bf16 from(to(x)) != x", x);
         }
@@ -142,12 +142,12 @@ static void
 rt_u8(void) {
     for (u32 x = 0; x <= UINT8_MAX; x++) {
         u8 v = (u8)x;
-        u8b t = from_u8(v);
-        u8 w = to_u8(t);
+        b32 t = from_u8(v);
+        u8 w = to_u8(t.b);
         if (w != v) {
             bad("u8 to(from(x)) != x", x);
         }
-        u8b t2 = from_u8(w);
+        b32 t2 = from_u8(w);
         if (strcmp(t2.b, t.b) != 0) {
             bad("u8 from(to(x)) != x", x);
         }
@@ -159,12 +159,12 @@ static void
 rt_i8(void) {
     for (i32 x = INT8_MIN; x <= INT8_MAX; x++) {
         i8 v = (i8)x;
-        i8b t = from_i8(v);
-        i8 w = to_i8(t);
+        b32 t = from_i8(v);
+        i8 w = to_i8(t.b);
         if (w != v) {
             bad("i8 to(from(x)) != x", (u64)x);
         }
-        i8b t2 = from_i8(w);
+        b32 t2 = from_i8(w);
         if (strcmp(t2.b, t.b) != 0) {
             bad("i8 from(to(x)) != x", (u64)x);
         }
@@ -176,12 +176,12 @@ static void
 rt_u16(void) {
     for (u32 x = 0; x <= UINT16_MAX; x++) {
         u16 v = (u16)x;
-        u16b t = from_u16(v);
-        u16 w = to_u16(t);
+        b32 t = from_u16(v);
+        u16 w = to_u16(t.b);
         if (w != v) {
             bad("u16 to(from(x)) != x", x);
         }
-        u16b t2 = from_u16(w);
+        b32 t2 = from_u16(w);
         if (strcmp(t2.b, t.b) != 0) {
             bad("u16 from(to(x)) != x", x);
         }
@@ -193,12 +193,12 @@ static void
 rt_i16(void) {
     for (i32 x = INT16_MIN; x <= INT16_MAX; x++) {
         i16 v = (i16)x;
-        i16b t = from_i16(v);
-        i16 w = to_i16(t);
+        b32 t = from_i16(v);
+        i16 w = to_i16(t.b);
         if (w != v) {
             bad("i16 to(from(x)) != x", (u64)x);
         }
-        i16b t2 = from_i16(w);
+        b32 t2 = from_i16(w);
         if (strcmp(t2.b, t.b) != 0) {
             bad("i16 from(to(x)) != x", (u64)x);
         }
@@ -222,12 +222,12 @@ rnd(void) {
 static void
 chk_u32(u32 v) {
     nchk++;
-    u32b t = from_u32(v);
-    u32 w = to_u32(t);
+    b32 t = from_u32(v);
+    u32 w = to_u32(t.b);
     if (w != v) {
         bad("u32 to(from(x)) != x", v);
     }
-    u32b t2 = from_u32(w);
+    b32 t2 = from_u32(w);
     if (strcmp(t2.b, t.b) != 0) {
         bad("u32 from(to(x)) != x", v);
     }
@@ -262,12 +262,12 @@ rt_u32(void) {
 static void
 chk_i32(i32 v) {
     nchk++;
-    i32b t = from_i32(v);
-    i32 w = to_i32(t);
+    b32 t = from_i32(v);
+    i32 w = to_i32(t.b);
     if (w != v) {
         bad("i32 to(from(x)) != x", (u64)(u32)v);
     }
-    i32b t2 = from_i32(w);
+    b32 t2 = from_i32(w);
     if (strcmp(t2.b, t.b) != 0) {
         bad("i32 from(to(x)) != x", (u64)(u32)v);
     }
@@ -312,12 +312,12 @@ static void
 chk_f32(u32 bits) {
     nchk++;
     f32 v = bits_f32(bits);
-    f32b t = from_f32(v);
-    f32 w = to_f32(t);
+    b32 t = from_f32(v);
+    f32 w = to_f32(t.b);
     if (f32_bits(w) != bits) {
         bad("f32 to(from(x)) != x", bits);
     }
-    f32b t2 = from_f32(w);
+    b32 t2 = from_f32(w);
     if (strcmp(t2.b, t.b) != 0) {
         bad("f32 from(to(x)) != x", bits);
     }
@@ -371,9 +371,7 @@ rt_f32(void) {
         { "-16777217", 0xCB800000u, 0xCB800001u },
     };
     for (u32 i = 0; i < COUNT(ties); i++) {
-        f32b t;
-        strcpy(t.b, ties[i].s);
-        if (f32_bits(to_f32(t)) != ties[i].even) {
+        if (f32_bits(to_f32(ties[i].s)) != ties[i].even) {
             bad("f32 tie must round to even", ties[i].even);
         }
         if (strlen(from_f32(bits_f32(ties[i].even)).b) > strlen(ties[i].s)) {
@@ -389,9 +387,7 @@ rt_f32(void) {
         }
         for (i32 e = -30; e <= 30; e += 30) {
             snprintf(buf + len, sizeof buf - len, "e%d", (int)e);
-            f32b t;
-            strcpy(t.b, buf);
-            chk_f32(f32_bits(to_f32(t)));
+            chk_f32(f32_bits(to_f32(buf)));
         }
     }
     for (u64 n = 0; n < SAMPLES; n++) {
@@ -408,12 +404,12 @@ rt_f32(void) {
 static void
 chk_u64(u64 v) {
     nchk++;
-    u64b t = from_u64(v);
-    u64 w = to_u64(t);
+    b32 t = from_u64(v);
+    u64 w = to_u64(t.b);
     if (w != v) {
         bad("u64 to(from(x)) != x", v);
     }
-    u64b t2 = from_u64(w);
+    b32 t2 = from_u64(w);
     if (strcmp(t2.b, t.b) != 0) {
         bad("u64 from(to(x)) != x", v);
     }
@@ -448,12 +444,12 @@ rt_u64(void) {
 static void
 chk_i64(i64 v) {
     nchk++;
-    i64b t = from_i64(v);
-    i64 w = to_i64(t);
+    b32 t = from_i64(v);
+    i64 w = to_i64(t.b);
     if (w != v) {
         bad("i64 to(from(x)) != x", (u64)v);
     }
-    i64b t2 = from_i64(w);
+    b32 t2 = from_i64(w);
     if (strcmp(t2.b, t.b) != 0) {
         bad("i64 from(to(x)) != x", (u64)v);
     }
@@ -498,12 +494,12 @@ static void
 chk_f64(u64 bits) {
     nchk++;
     f64 v = bits_f64(bits);
-    f64b t = from_f64(v);
-    f64 w = to_f64(t);
+    b32 t = from_f64(v);
+    f64 w = to_f64(t.b);
     if (f64_bits(w) != bits) {
         bad("f64 to(from(x)) != x", bits);
     }
-    f64b t2 = from_f64(w);
+    b32 t2 = from_f64(w);
     if (strcmp(t2.b, t.b) != 0) {
         bad("f64 from(to(x)) != x", bits);
     }
@@ -557,9 +553,7 @@ rt_f64(void) {
         { "-9007199254740993", 0xC340000000000000ull, 0xC340000000000001ull },
     };
     for (u32 i = 0; i < COUNT(ties); i++) {
-        f64b t;
-        strcpy(t.b, ties[i].s);
-        if (f64_bits(to_f64(t)) != ties[i].even) {
+        if (f64_bits(to_f64(ties[i].s)) != ties[i].even) {
             bad("f64 tie must round to even", ties[i].even);
         }
         if (strlen(from_f64(bits_f64(ties[i].even)).b) > strlen(ties[i].s)) {
@@ -575,9 +569,7 @@ rt_f64(void) {
         }
         for (i32 e = -300; e <= 300; e += 300) {
             snprintf(buf + len, sizeof buf - len, "e%d", (int)e);
-            f64b t;
-            strcpy(t.b, buf);
-            chk_f64(f64_bits(to_f64(t)));
+            chk_f64(f64_bits(to_f64(buf)));
         }
     }
     for (u64 n = 0; n < SAMPLES; n++) {

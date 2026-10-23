@@ -1140,7 +1140,7 @@ digits8(const char *s, u64 *out) {
     return p;
 }
 
-static force_inline numeral
+static no_inline numeral
 scan_numeral(const char *s, size_t cap, bn *m) {
     numeral out = {0};
     bn_zero(m);
@@ -1430,9 +1430,9 @@ emit_float(u64 bits, i32 ebits, i32 sbits, i32 bias, char *out) {
     dtoa_short(m, k, sbits + 1, 1 - bias - sbits, o);
 }
 
-f64b
+b32
 from_f64(f64 v) {
-    f64b r;
+    b32 r;
     u64 bits;
     memcpy(&bits, &v, sizeof bits);
     emit_float(bits, F64_EBITS, F64_SBITS, F64_BIAS, r.b);
@@ -1440,17 +1440,17 @@ from_f64(f64 v) {
 }
 
 f64
-to_f64(f64b s) {
-    u64 bits = parse_float(s.b, sizeof s.b,
+to_f64(const char *s) {
+    u64 bits = parse_float(s, strlen(s),
                            F64_EBITS, F64_SBITS, F64_BIAS, FMT_IEEE);
     f64 v;
     memcpy(&v, &bits, sizeof v);
     return v;
 }
 
-f32b
+b32
 from_f32(f32 v) {
-    f32b r;
+    b32 r;
     u32 bits;
     memcpy(&bits, &v, sizeof bits);
     emit_float(bits, F32_EBITS, F32_SBITS, F32_BIAS, r.b);
@@ -1458,77 +1458,77 @@ from_f32(f32 v) {
 }
 
 f32
-to_f32(f32b s) {
-    u32 bits = (u32)parse_float(s.b, sizeof s.b,
+to_f32(const char *s) {
+    u32 bits = (u32)parse_float(s, strlen(s),
                                 F32_EBITS, F32_SBITS, F32_BIAS, FMT_IEEE);
     f32 v;
     memcpy(&v, &bits, sizeof v);
     return v;
 }
 
-f16b
+b32
 from_f16(f16 bits) {
-    f16b r;
+    b32 r;
     emit_float(bits, F16_EBITS, F16_SBITS, F16_BIAS, r.b);
     return r;
 }
 
 f16
-to_f16(f16b s) {
-    return (f16)parse_float(s.b, sizeof s.b,
+to_f16(const char *s) {
+    return (f16)parse_float(s, strlen(s),
                             F16_EBITS, F16_SBITS, F16_BIAS, FMT_IEEE);
 }
 
-bf16b
+b32
 from_bf16(bf16 bits) {
-    bf16b r;
+    b32 r;
     emit_float(bits, BF16_EBITS, BF16_SBITS, BF16_BIAS, r.b);
     return r;
 }
 
 bf16
-to_bf16(bf16b s) {
-    return (bf16)parse_float(s.b, sizeof s.b,
+to_bf16(const char *s) {
+    return (bf16)parse_float(s, strlen(s),
                              BF16_EBITS, BF16_SBITS, BF16_BIAS, FMT_IEEE);
 }
 
-e5m2b
+b32
 from_e5m2(e5m2 bits) {
-    e5m2b r;
+    b32 r;
     memcpy(r.b, e5m2_text[bits], sizeof e5m2_text[0]);
     return r;
 }
 
 e5m2
-to_e5m2(e5m2b s) {
-    return (e5m2)parse_float(s.b, sizeof s.b,
+to_e5m2(const char *s) {
+    return (e5m2)parse_float(s, strlen(s),
                              E5M2_EBITS, E5M2_SBITS, E5M2_BIAS, FMT_IEEE);
 }
 
-e4m3b
+b32
 from_e4m3(e4m3 bits) {
-    e4m3b r;
+    b32 r;
     memcpy(r.b, e4m3_text[bits], sizeof e4m3_text[0]);
     return r;
 }
 
 e4m3
-to_e4m3(e4m3b s) {
-    return (e4m3)parse_float(s.b, sizeof s.b,
+to_e4m3(const char *s) {
+    return (e4m3)parse_float(s, strlen(s),
                              E4M3_EBITS, E4M3_SBITS, E4M3_BIAS, FMT_FN);
 }
 
-e2m1b
+b32
 from_e2m1(e2m1 bits) {
-    e2m1b r;
+    b32 r;
     bits &= (e2m1)((1 << (E2M1_EBITS + E2M1_SBITS + 1)) - 1);
     memcpy(r.b, e2m1_text[bits], sizeof e2m1_text[0]);
     return r;
 }
 
 e2m1
-to_e2m1(e2m1b s) {
-    return (e2m1)parse_float(s.b, sizeof s.b,
+to_e2m1(const char *s) {
+    return (e2m1)parse_float(s, strlen(s),
                              E2M1_EBITS, E2M1_SBITS, E2M1_BIAS,
                              FMT_FINITE);
 }
@@ -1637,98 +1637,98 @@ scan_uint(const char *s, size_t cap, u64 hi) {
     return sm.mag > hi ? hi : sm.mag;
 }
 
-u8b
+b32
 from_u8(u8 v) {
-    u8b r;
+    b32 r;
     fmt_u64(v, r.b);
     return r;
 }
 
 u8
-to_u8(u8b s) {
-    return (u8)scan_uint(s.b, sizeof s.b, UINT8_MAX);
+to_u8(const char *s) {
+    return (u8)scan_uint(s, strlen(s), UINT8_MAX);
 }
 
-i8b
+b32
 from_i8(i8 v) {
-    i8b r;
+    b32 r;
     fmt_i64(v, r.b);
     return r;
 }
 
 i8
-to_i8(i8b s) {
-    return (i8)scan_int(s.b, sizeof s.b, INT8_MIN, INT8_MAX);
+to_i8(const char *s) {
+    return (i8)scan_int(s, strlen(s), INT8_MIN, INT8_MAX);
 }
 
-u16b
+b32
 from_u16(u16 v) {
-    u16b r;
+    b32 r;
     fmt_u64(v, r.b);
     return r;
 }
 
 u16
-to_u16(u16b s) {
-    return (u16)scan_uint(s.b, sizeof s.b, UINT16_MAX);
+to_u16(const char *s) {
+    return (u16)scan_uint(s, strlen(s), UINT16_MAX);
 }
 
-i16b
+b32
 from_i16(i16 v) {
-    i16b r;
+    b32 r;
     fmt_i64(v, r.b);
     return r;
 }
 
 i16
-to_i16(i16b s) {
-    return (i16)scan_int(s.b, sizeof s.b, INT16_MIN, INT16_MAX);
+to_i16(const char *s) {
+    return (i16)scan_int(s, strlen(s), INT16_MIN, INT16_MAX);
 }
 
-u32b
+b32
 from_u32(u32 v) {
-    u32b r;
+    b32 r;
     fmt_u64(v, r.b);
     return r;
 }
 
 u32
-to_u32(u32b s) {
-    return (u32)scan_uint(s.b, sizeof s.b, UINT32_MAX);
+to_u32(const char *s) {
+    return (u32)scan_uint(s, strlen(s), UINT32_MAX);
 }
 
-i32b
+b32
 from_i32(i32 v) {
-    i32b r;
+    b32 r;
     fmt_i64(v, r.b);
     return r;
 }
 
 i32
-to_i32(i32b s) {
-    return (i32)scan_int(s.b, sizeof s.b, INT32_MIN, INT32_MAX);
+to_i32(const char *s) {
+    return (i32)scan_int(s, strlen(s), INT32_MIN, INT32_MAX);
 }
 
-u64b
+b32
 from_u64(u64 v) {
-    u64b r;
+    b32 r;
     fmt_u64(v, r.b);
     return r;
 }
 
 u64
-to_u64(u64b s) {
-    return scan_uint(s.b, sizeof s.b, UINT64_MAX);
+to_u64(const char *s) {
+    return scan_uint(s, strlen(s), UINT64_MAX);
 }
 
-i64b
+b32
 from_i64(i64 v) {
-    i64b r;
+    b32 r;
     fmt_i64(v, r.b);
     return r;
 }
 
 i64
-to_i64(i64b s) {
-    return scan_int(s.b, sizeof s.b, INT64_MIN, INT64_MAX);
+to_i64(const char *s) {
+    return scan_int(s, strlen(s), INT64_MIN, INT64_MAX);
 }
