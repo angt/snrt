@@ -856,15 +856,15 @@ dec_len(u64 v) {
 typedef u16 u16a __attribute__((may_alias, aligned(1)));
 
 static void
-put_pair(char *w, const char *tbl, u64 i) {
-    *(u16a *)w = *(const u16a *)(tbl + 2 * i);
+put_pair(char *w, const u16 *tbl, u64 i) {
+    *(u16a *)w = tbl[i];
 }
 
 #else
 
 static void
-put_pair(char *w, const char *tbl, u64 i) {
-    memcpy(w, tbl + 2 * i, 2);
+put_pair(char *w, const u16 *tbl, u64 i) {
+    memcpy(w, &tbl[i], 2);
 }
 
 #endif
@@ -1495,7 +1495,7 @@ to_bf16(const char *s) {
 b32
 from_e5m2(e5m2 bits) {
     b32 r;
-    memcpy(r.b, e5m2_text[bits], sizeof e5m2_text[0]);
+    memcpy(r.b, &e5m2_word[bits], sizeof e5m2_word[0]);
     return r;
 }
 
@@ -1508,7 +1508,9 @@ to_e5m2(const char *s) {
 b32
 from_e4m3(e4m3 bits) {
     b32 r;
-    memcpy(r.b, e4m3_text[bits], sizeof e4m3_text[0]);
+    u64 i = bits & 0x7f;
+    u64 neg = (bits >> 7) & (i != E4M3_NAN);
+    memcpy(r.b, e4m3_row + 1 + E4M3_ROW * i - neg, 8);
     return r;
 }
 
@@ -1521,8 +1523,17 @@ to_e4m3(const char *s) {
 b32
 from_e2m1(e2m1 bits) {
     b32 r;
-    bits &= (e2m1)((1 << (E2M1_EBITS + E2M1_SBITS + 1)) - 1);
-    memcpy(r.b, e2m1_text[bits], sizeof e2m1_text[0]);
+    u64 x = bits & ((1 << (E2M1_EBITS + E2M1_SBITS + 1)) - 1);
+    u64 expf = (x >> E2M1_SBITS) & ((1 << E2M1_EBITS) - 1);
+    u64 h = expf ? (2 + (x & 1)) << (expf - 1) : x & 1;
+    u64 w = '0' + (h >> 1);
+    if (h & 1) {
+        w |= (u64)'.' << 8 | (u64)'5' << 16;
+    }
+    if (x >> (E2M1_EBITS + E2M1_SBITS)) {
+        w = (w << 8) | '-';
+    }
+    memcpy(r.b, &w, sizeof w);
     return r;
 }
 

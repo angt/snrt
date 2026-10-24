@@ -20,18 +20,25 @@ typedef enum {
     KIND_FINITE    // e2m1 is finite only and saturates
 } fmt_kind;
 
+typedef enum {
+    SHAPE_NONE,    // no text table
+    SHAPE_WORDS,   // one 8-byte word per pattern
+    SHAPE_ROWS     // 7-byte magnitude rows with '-' sign pads
+} text_shape;
+
 static const struct {
     const char *name;
     int ebits, sbits;
     fmt_kind kind;
+    text_shape shape;
 } formats[] = {
-    { "F64",  11, 52, KIND_IEEE },     // IEEE binary64
-    { "F32",   8, 23, KIND_IEEE },     // IEEE binary32
-    { "F16",   5, 10, KIND_IEEE },     // IEEE binary16
-    { "BF16",  8,  7, KIND_IEEE },     // bfloat16
-    { "E5M2",  5,  2, KIND_IEEE },     // OCP float8 e5m2
-    { "E4M3",  4,  3, KIND_FN },       // OCP float8 e4m3fn
-    { "E2M1",  2,  1, KIND_FINITE },   // OCP float4 e2m1
+    { "F64",  11, 52, KIND_IEEE,   SHAPE_NONE  },  // IEEE binary64
+    { "F32",   8, 23, KIND_IEEE,   SHAPE_NONE  },  // IEEE binary32
+    { "F16",   5, 10, KIND_IEEE,   SHAPE_NONE  },  // IEEE binary16
+    { "BF16",  8,  7, KIND_IEEE,   SHAPE_NONE  },  // bfloat16
+    { "E5M2",  5,  2, KIND_IEEE,   SHAPE_WORDS },  // OCP float8 e5m2
+    { "E4M3",  4,  3, KIND_FN,     SHAPE_ROWS  },  // OCP float8 e4m3fn
+    { "E2M1",  2,  1, KIND_FINITE, SHAPE_NONE  },  // OCP float4 e2m1
 };
 
 enum { NFORMATS = (int)COUNT(formats) };
@@ -275,7 +282,6 @@ fmt_text(uint64_t d, int e, char *out) {
         if (x < 0) {
             *w++ = '-';
         }
-        /* the exponent digits are the last ed bytes of out */
         snprintf(w, (size_t)ed + 1, "%d", a);
         return;
     }
@@ -487,39 +493,80 @@ main(void) {
     }
     fprintf(f, "};\n\n");
 
-    fprintf(f, "static const char dig2[] =\n");
-    for (int i = 0; i < 100; i += 25) {
-        fprintf(f, "    \"");
-        for (int j = i; j < i + 25; j++) {
-            fprintf(f, "%02d", j);
+    fprintf(f, "static const uint16_t dig2[100] = {\n");
+    for (int i = 0; i < 100; i += 10) {
+        fprintf(f, "   ");
+        for (int j = i; j < i + 10; j++) {
+            fprintf(f, " 0x%04x,", (unsigned)('0' + j / 10)
+                                 | (unsigned)('0' + j % 10) << 8);
         }
-        fprintf(f, "\"%s\n", i + 25 < 100 ? "" : ";");
+        fprintf(f, "\n");
     }
-    fprintf(f, "\n");
+    fprintf(f, "};\n\n");
 
     for (int fi = 0; fi < NFORMATS; fi++) {
-        int width = formats[fi].ebits + formats[fi].sbits + 1;
-        if (width > 8) {
+        if (formats[fi].shape == SHAPE_NONE) {
             continue;
         }
+        int width = formats[fi].ebits + formats[fi].sbits + 1;
         unsigned npat = 1u << width;
+        const char *tag = formats[fi].name;
         char name[16];
-        downcase_name(formats[fi].name, name);
+        downcase_name(tag, name);
         char rows[256][40];
-        unsigned w = 1;
         for (unsigned u = 0; u < npat; u++) {
             pattern_text(formats[fi].ebits, formats[fi].sbits,
                          formats[fi].kind, u, rows[u]);
-            unsigned len = (unsigned)strlen(rows[u]) + 1;
-            if (len > w) {
-                w = len;
+        }
+        if (formats[fi].shape == SHAPE_WORDS) {
+            unsigned wmax = 0;
+            for (unsigned u = 0; u < npat; u++) {
+                unsigned len = (unsigned)strlen(rows[u]);
+                if (len > wmax) {
+                    wmax = len;
+                }
+            }
+            must(wmax <= 7, "a text does not fit an 8-byte word row");
+            fprintf(f, "static const uint64_t %s_word[%u] = {\n", name, npat);
+            for (unsigned u = 0; u < npat; u++) {
+                uint64_t w = 0;
+                memcpy(&w, rows[u], strlen(rows[u]) + 1);
+                fprintf(f, "    0x%016llxull,\n", (unsigned long long)w);
+            }
+            fprintf(f, "};\n\n");
+            continue;
+        }
+        unsigned half = npat / 2;
+        int nan_row = -1;
+        for (unsigned i = 0; i < half; i++) {
+            must(strlen(rows[i]) <= 5, "a text does not fit a 7-byte row");
+            if (strcmp(rows[i], rows[i + half]) == 0) {
+                must(strcmp(rows[i], "nan") == 0, "a sign-less text is not nan");
+                must(nan_row < 0, "more than one sign-less text");
+                nan_row = (int)i;
+            } else {
+                must(rows[i + half][0] == '-' &&
+                     strcmp(rows[i + half] + 1, rows[i]) == 0,
+                     "texts are not sign-symmetric");
             }
         }
-        fprintf(f, "static const char %s_text[%u][%u] = {\n", name, npat, w);
-        for (unsigned u = 0; u < npat; u++) {
-            fprintf(f, "    \"%s\",\n", rows[u]);
+        fprintf(f, "enum {"            "\n"
+                   "    %s_ROW = 7,"   "\n"
+                   "    %s_NAN = %d,"  "\n"
+                   "};"                "\n"
+                                       "\n",
+                tag, tag, nan_row < 0 ? (int)half : nan_row);
+        fprintf(f, "static const uint8_t %s_row[%u] = {\n", name, 1 + half * 7 + 1);
+        fprintf(f, "    0x2d,\n");
+        for (unsigned i = 0; i < half; i++) {
+            unsigned len = (unsigned)strlen(rows[i]);
+            fprintf(f, "   ");
+            for (unsigned k = 0; k < 7; k++) {
+                fprintf(f, " 0x%02x,", k < len ? (unsigned char)rows[i][k] : k == len ? 0 : 0x2d);
+            }
+            fprintf(f, "\n");
         }
-        fprintf(f, "};\n\n");
+        fprintf(f, "    0x2d,\n};\n\n");
     }
     big p = { .d = { 1 }, .n = 1 };
 
