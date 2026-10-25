@@ -1,6 +1,7 @@
 #ifndef SNRT_H
 #define SNRT_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -34,6 +35,14 @@ snrt_b32   snrt_from_e5m2(snrt_e5m2 v);
 snrt_b32   snrt_from_e4m3(snrt_e4m3 v);
 snrt_b32   snrt_from_e2m1(snrt_e2m1 v);
 
+snrt_f64   snrt_scan_f64(const char *s, size_t n, size_t *consumed);
+snrt_f32   snrt_scan_f32(const char *s, size_t n, size_t *consumed);
+snrt_f16   snrt_scan_f16(const char *s, size_t n, size_t *consumed);
+snrt_bf16  snrt_scan_bf16(const char *s, size_t n, size_t *consumed);
+snrt_e5m2  snrt_scan_e5m2(const char *s, size_t n, size_t *consumed);
+snrt_e4m3  snrt_scan_e4m3(const char *s, size_t n, size_t *consumed);
+snrt_e2m1  snrt_scan_e2m1(const char *s, size_t n, size_t *consumed);
+
 snrt_f64   snrt_to_f64(const char *s);
 snrt_f32   snrt_to_f32(const char *s);
 snrt_f16   snrt_to_f16(const char *s);
@@ -50,6 +59,15 @@ snrt_b32   snrt_from_u32(snrt_u32 v);
 snrt_b32   snrt_from_i32(snrt_i32 v);
 snrt_b32   snrt_from_u64(snrt_u64 v);
 snrt_b32   snrt_from_i64(snrt_i64 v);
+
+snrt_u8    snrt_scan_u8(const char *s, size_t n, size_t *consumed);
+snrt_i8    snrt_scan_i8(const char *s, size_t n, size_t *consumed);
+snrt_u16   snrt_scan_u16(const char *s, size_t n, size_t *consumed);
+snrt_i16   snrt_scan_i16(const char *s, size_t n, size_t *consumed);
+snrt_u32   snrt_scan_u32(const char *s, size_t n, size_t *consumed);
+snrt_i32   snrt_scan_i32(const char *s, size_t n, size_t *consumed);
+snrt_u64   snrt_scan_u64(const char *s, size_t n, size_t *consumed);
+snrt_i64   snrt_scan_i64(const char *s, size_t n, size_t *consumed);
 
 snrt_u8    snrt_to_u8(const char *s);
 snrt_i8    snrt_to_i8(const char *s);
@@ -80,6 +98,23 @@ typedef snrt_u64  u64;
 typedef snrt_i64  i64;
 
 typedef snrt_b32  b32;
+
+#define scan_f64  snrt_scan_f64
+#define scan_f32  snrt_scan_f32
+#define scan_f16  snrt_scan_f16
+#define scan_bf16 snrt_scan_bf16
+#define scan_e5m2 snrt_scan_e5m2
+#define scan_e4m3 snrt_scan_e4m3
+#define scan_e2m1 snrt_scan_e2m1
+
+#define scan_u8   snrt_scan_u8
+#define scan_i8   snrt_scan_i8
+#define scan_u16  snrt_scan_u16
+#define scan_i16  snrt_scan_i16
+#define scan_u32  snrt_scan_u32
+#define scan_i32  snrt_scan_i32
+#define scan_u64  snrt_scan_u64
+#define scan_i64  snrt_scan_i64
 
 #define to_f64   snrt_to_f64
 #define to_f32   snrt_to_f32

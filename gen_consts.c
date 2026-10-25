@@ -321,18 +321,14 @@ pattern_text(int ebits, int sbits, fmt_kind kind, unsigned u, char *out) {
     unsigned frac = u & ((1u << sbits) - 1);
     unsigned emaxf = (1u << ebits) - 1;
     unsigned smask = (1u << sbits) - 1;
+    out[0] = '-';
+    char *w = out + sign;
     if (kind == KIND_IEEE && expf == emaxf) {
-        if (frac) {
-            memcpy(out, "nan", sizeof "nan");
-        } else if (sign) {
-            memcpy(out, "-inf", sizeof "-inf");
-        } else {
-            memcpy(out, "inf", sizeof "inf");
-        }
+        memcpy(w, frac ? "nan" : "inf", sizeof "nan");
         return;
     }
     if (kind == KIND_FN && expf == emaxf && frac == smask) {
-        memcpy(out, "nan", sizeof "nan");
+        memcpy(w, "nan", sizeof "nan");
         return;
     }
     uint64_t m;
@@ -345,19 +341,11 @@ pattern_text(int ebits, int sbits, fmt_kind kind, unsigned u, char *out) {
         E = (int)expf - bias - sbits;
     }
     if (!m) {
-        if (sign) {
-            memcpy(out, "-0", sizeof "-0");
-        } else {
-            memcpy(out, "0", sizeof "0");
-        }
+        memcpy(w, "0", sizeof "0");
         return;
     }
     double v = ldexp((double)m, E);
     int binade_low = expf >= 2 && m == ((uint64_t)1 << sbits);
-    char *w = out;
-    if (sign) {
-        *w++ = '-';
-    }
     char best[40];
     int found = 0;
     int best_len = 0;
@@ -567,25 +555,16 @@ main(void) {
             continue;
         }
         unsigned half = npat / 2;
-        int nan_row = -1;
         for (unsigned i = 0; i < half; i++) {
             must(strlen(rows[i]) <= 5, "a text does not fit a 7-byte row");
-            if (strcmp(rows[i], rows[i + half]) == 0) {
-                must(strcmp(rows[i], "nan") == 0, "a sign-less text is not nan");
-                must(nan_row < 0, "more than one sign-less text");
-                nan_row = (int)i;
-            } else {
-                must(rows[i + half][0] == '-' &&
-                     strcmp(rows[i + half] + 1, rows[i]) == 0,
-                     "texts are not sign-symmetric");
-            }
+            must(rows[i + half][0] == '-' &&
+                 strcmp(rows[i + half] + 1, rows[i]) == 0, "texts are not sign-symmetric");
         }
         fprintf(f, "enum {"            "\n"
                    "    %s_ROW = 7,"   "\n"
-                   "    %s_NAN = %d,"  "\n"
                    "};"                "\n"
                                        "\n",
-                tag, tag, nan_row < 0 ? (int)half : nan_row);
+                tag);
         fprintf(f, "static const uint8_t %s_row[%u] = {\n", name, 1 + half * 7 + 1);
         fprintf(f, "    0x2d,\n");
         for (unsigned i = 0; i < half; i++) {

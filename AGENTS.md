@@ -16,4 +16,5 @@ parse grammar, round trips at every decimal length.
 flags, before and after numbers.
 
 **Print and parse are exact inverses.** The text is the shortest that
-comes back as the same value, every bit.
+comes back as the same value, every bit but a NaN payload — `nan` and
+`-nan` carry the sign and fold the payload to the canonical quiet NaN.

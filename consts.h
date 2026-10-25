@@ -358,14 +358,13 @@ static const uint64_t e5m2_word[256] = {
     0x000000003465352dull,
     0x000000003465362dull,
     0x00000000666e692dull,
-    0x00000000006e616eull,
-    0x00000000006e616eull,
-    0x00000000006e616eull,
+    0x000000006e616e2dull,
+    0x000000006e616e2dull,
+    0x000000006e616e2dull,
 };
 
 enum {
     E4M3_ROW = 7,
-    E4M3_NAN = 127,
 };
 
 static const uint8_t e4m3_row[898] = {

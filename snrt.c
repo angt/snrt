@@ -1082,14 +1082,16 @@ word_eq(const char *s, size_t cap, size_t *i, const char *w) {
 }
 
 static no_inline scan_kind
-scan_words(const char *s, size_t cap, size_t i) {
+scan_words(const char *s, size_t cap, size_t i, size_t *end) {
     size_t j = i;
     if (word_eq(s, cap, &j, "infinity") || word_eq(s, cap, &j, "inf")) {
-        return j == cap || !s[j] ? SCAN_INF : SCAN_BAD;
+        *end = j;
+        return SCAN_INF;
     }
     j = i;
     if (word_eq(s, cap, &j, "nan")) {
-        return j == cap || !s[j] ? SCAN_NAN : SCAN_BAD;
+        *end = j;
+        return SCAN_NAN;
     }
     return SCAN_BAD;
 }
@@ -1141,16 +1143,17 @@ digits8(const char *s, u64 *out) {
 }
 
 static no_inline numeral
-scan_numeral(const char *s, size_t cap, bn *m) {
+scan_numeral(const char *s, size_t cap, bn *m, size_t *end) {
     numeral out = {0};
     bn_zero(m);
+    *end = 0;
     size_t i = 0;
     if (i < cap && (s[i] == '+' || s[i] == '-')) {
         out.sign = s[i] == '-';
         i++;
     }
     if (unlikely(i >= cap || (s[i] != '.' && (s[i] < '0' || s[i] > '9')))) {
-        out.spec = scan_words(s, cap, i);
+        out.spec = scan_words(s, cap, i, end);
         return out;
     }
     u64 acc = 0;
@@ -1216,6 +1219,7 @@ scan_numeral(const char *s, size_t cap, bn *m) {
             dot_at = nd;
             i++;
         } else if ((c == 'e' || c == 'E') && nd > 0) {
+            size_t ie = i;
             i++;
             if (i < cap && (s[i] == '+' || s[i] == '-')) {
                 expneg = s[i] == '-';
@@ -1228,18 +1232,16 @@ scan_numeral(const char *s, size_t cap, bn *m) {
                 e10 = d10 > EXP_ACC_SAT ? EXP_ACC_SAT : d10;
             }
             if (unlikely(i == e0)) {
-                return out;
+                i = ie;
+                break;
             }
             exp = e10;
             break;
         } else {
-            return out;
+            break;
         }
     }
     if (unlikely(!nd)) {
-        return out;
-    }
-    if (unlikely(i < cap && s[i])) {
         return out;
     }
     bn_mul_add(m, pow10_u64[held], acc);
@@ -1248,6 +1250,7 @@ scan_numeral(const char *s, size_t cap, bn *m) {
           + (expneg ? -(i64)exp : (i64)exp) + dropped;
     out.q = q > EXP_Q_LIM ? EXP_Q_LIM : q < -EXP_Q_LIM ? -EXP_Q_LIM : (i32)q;
     out.spec = SCAN_FINITE;
+    *end = i;
     return out;
 }
 
@@ -1342,9 +1345,17 @@ compose_float(u64 sign, u64 m, i32 k, i32 ebits, i32 sbits, i32 bias, fmt_kind k
 }
 
 static force_inline u64
-parse_float(const char *s, size_t cap, i32 ebits, i32 sbits, i32 bias, fmt_kind kind) {
+parse_float(const char *s, size_t cap, size_t *end, i32 strict, i32 ebits,
+            i32 sbits, i32 bias, fmt_kind kind) {
     bn M;
-    numeral num = scan_numeral(s, cap, &M);
+    size_t e;
+    numeral num = scan_numeral(s, cap, &M, &e);
+    if (end) {
+        *end = e;
+    }
+    if (strict && e != cap) {
+        return 0;
+    }
     u64 signb = num.sign << (ebits + sbits);
     if (unlikely(num.spec != SCAN_FINITE)) {
         return special_bits(num.spec, num.sign, ebits, sbits, kind);
@@ -1386,6 +1397,12 @@ parse_float(const char *s, size_t cap, i32 ebits, i32 sbits, i32 bias, fmt_kind 
     return compose_float(num.sign, R, k_sub, ebits, sbits, bias, kind);
 }
 
+static no_inline u64
+parse_any(const char *s, size_t cap, size_t *end, i32 ebits, i32 sbits,
+          i32 bias, fmt_kind kind) {
+    return parse_float(s, cap, end, 0, ebits, sbits, bias, kind);
+}
+
 static force_inline void
 emit_float(u64 bits, i32 ebits, i32 sbits, i32 bias, char *out) {
     if (ebits + sbits + 1 < 64) {
@@ -1396,16 +1413,10 @@ emit_float(u64 bits, i32 ebits, i32 sbits, i32 bias, char *out) {
     u64 emaxf = (1ull << ebits) - 1;
     u64 expf = (bits >> sbits) & emaxf;
     u64 frac = bits & smask;
+    out[0] = '-';
+    char *o = out + sign;
     if (unlikely(expf == emaxf)) {
-        if (frac) {
-            memcpy(out, "nan", sizeof "nan");
-            return;
-        }
-        if (sign) {
-            memcpy(out, "-inf", sizeof "-inf");
-        } else {
-            memcpy(out, "inf", sizeof "inf");
-        }
+        memcpy(o, frac ? "nan" : "inf", sizeof "nan");
         return;
     }
     u64 m;
@@ -1418,15 +1429,9 @@ emit_float(u64 bits, i32 ebits, i32 sbits, i32 bias, char *out) {
         k = (i32)expf - bias - sbits;
     }
     if (unlikely(!m)) {
-        if (sign) {
-            memcpy(out, "-0", sizeof "-0");
-        } else {
-            memcpy(out, "0", sizeof "0");
-        }
+        memcpy(o, "0", sizeof "0");
         return;
     }
-    out[0] = '-';
-    char *o = out + sign;
     dtoa_short(m, k, sbits + 1, 1 - bias - sbits, o);
 }
 
@@ -1440,8 +1445,17 @@ from_f64(f64 v) {
 }
 
 f64
+scan_f64(const char *s, size_t n, size_t *consumed) {
+    u64 bits = parse_any(s, n, consumed,
+                         F64_EBITS, F64_SBITS, F64_BIAS, FMT_IEEE);
+    f64 v;
+    memcpy(&v, &bits, sizeof v);
+    return v;
+}
+
+f64
 to_f64(const char *s) {
-    u64 bits = parse_float(s, strlen(s),
+    u64 bits = parse_float(s, strlen(s), NULL, 1,
                            F64_EBITS, F64_SBITS, F64_BIAS, FMT_IEEE);
     f64 v;
     memcpy(&v, &bits, sizeof v);
@@ -1458,8 +1472,17 @@ from_f32(f32 v) {
 }
 
 f32
+scan_f32(const char *s, size_t n, size_t *consumed) {
+    u32 bits = (u32)parse_any(s, n, consumed,
+                              F32_EBITS, F32_SBITS, F32_BIAS, FMT_IEEE);
+    f32 v;
+    memcpy(&v, &bits, sizeof v);
+    return v;
+}
+
+f32
 to_f32(const char *s) {
-    u32 bits = (u32)parse_float(s, strlen(s),
+    u32 bits = (u32)parse_float(s, strlen(s), NULL, 1,
                                 F32_EBITS, F32_SBITS, F32_BIAS, FMT_IEEE);
     f32 v;
     memcpy(&v, &bits, sizeof v);
@@ -1474,9 +1497,15 @@ from_f16(f16 bits) {
 }
 
 f16
+scan_f16(const char *s, size_t n, size_t *consumed) {
+    return (f16)parse_any(s, n, consumed, F16_EBITS, F16_SBITS,
+                          F16_BIAS, FMT_IEEE);
+}
+
+f16
 to_f16(const char *s) {
-    return (f16)parse_float(s, strlen(s),
-                            F16_EBITS, F16_SBITS, F16_BIAS, FMT_IEEE);
+    return (f16)parse_float(s, strlen(s), NULL, 1, F16_EBITS, F16_SBITS,
+                            F16_BIAS, FMT_IEEE);
 }
 
 b32
@@ -1487,9 +1516,15 @@ from_bf16(bf16 bits) {
 }
 
 bf16
+scan_bf16(const char *s, size_t n, size_t *consumed) {
+    return (bf16)parse_any(s, n, consumed, BF16_EBITS, BF16_SBITS,
+                           BF16_BIAS, FMT_IEEE);
+}
+
+bf16
 to_bf16(const char *s) {
-    return (bf16)parse_float(s, strlen(s),
-                             BF16_EBITS, BF16_SBITS, BF16_BIAS, FMT_IEEE);
+    return (bf16)parse_float(s, strlen(s), NULL, 1, BF16_EBITS, BF16_SBITS,
+                             BF16_BIAS, FMT_IEEE);
 }
 
 b32
@@ -1500,24 +1535,36 @@ from_e5m2(e5m2 bits) {
 }
 
 e5m2
+scan_e5m2(const char *s, size_t n, size_t *consumed) {
+    return (e5m2)parse_any(s, n, consumed, E5M2_EBITS, E5M2_SBITS,
+                           E5M2_BIAS, FMT_IEEE);
+}
+
+e5m2
 to_e5m2(const char *s) {
-    return (e5m2)parse_float(s, strlen(s),
-                             E5M2_EBITS, E5M2_SBITS, E5M2_BIAS, FMT_IEEE);
+    return (e5m2)parse_float(s, strlen(s), NULL, 1, E5M2_EBITS, E5M2_SBITS,
+                             E5M2_BIAS, FMT_IEEE);
 }
 
 b32
 from_e4m3(e4m3 bits) {
     b32 r;
     u64 i = bits & 0x7f;
-    u64 neg = (bits >> 7) & (i != E4M3_NAN);
+    u64 neg = bits >> 7;
     memcpy(r.b, e4m3_row + 1 + E4M3_ROW * i - neg, 8);
     return r;
 }
 
 e4m3
+scan_e4m3(const char *s, size_t n, size_t *consumed) {
+    return (e4m3)parse_any(s, n, consumed, E4M3_EBITS, E4M3_SBITS,
+                           E4M3_BIAS, FMT_FN);
+}
+
+e4m3
 to_e4m3(const char *s) {
-    return (e4m3)parse_float(s, strlen(s),
-                             E4M3_EBITS, E4M3_SBITS, E4M3_BIAS, FMT_FN);
+    return (e4m3)parse_float(s, strlen(s), NULL, 1, E4M3_EBITS, E4M3_SBITS,
+                             E4M3_BIAS, FMT_FN);
 }
 
 b32
@@ -1538,10 +1585,15 @@ from_e2m1(e2m1 bits) {
 }
 
 e2m1
+scan_e2m1(const char *s, size_t n, size_t *consumed) {
+    return (e2m1)parse_any(s, n, consumed, E2M1_EBITS, E2M1_SBITS,
+                           E2M1_BIAS, FMT_FINITE);
+}
+
+e2m1
 to_e2m1(const char *s) {
-    return (e2m1)parse_float(s, strlen(s),
-                             E2M1_EBITS, E2M1_SBITS, E2M1_BIAS,
-                             FMT_FINITE);
+    return (e2m1)parse_float(s, strlen(s), NULL, 1, E2M1_EBITS, E2M1_SBITS,
+                             E2M1_BIAS, FMT_FINITE);
 }
 
 static void
@@ -1567,8 +1619,9 @@ typedef struct {
 } signmag;
 
 static force_inline signmag
-scan_mag(const char *s, size_t cap) {
+scan_mag(const char *s, size_t cap, size_t *end) {
     signmag out = {0};
+    *end = 0;
     size_t i = 0;
     i32 sign = 0;
     if (i < cap) {
@@ -1601,7 +1654,7 @@ scan_mag(const char *s, size_t cap) {
         } else {
             u64 d = (u64)(s[i] - '0');
             if (unlikely(d > 9)) {
-                return out;
+                break;
             }
             v = mag_step(v, d);
             nd++;
@@ -1612,6 +1665,7 @@ scan_mag(const char *s, size_t cap) {
         return out;
     }
     out.mag = v;
+    *end = i;
     out.ok = 1;
     return out;
 }
@@ -1629,8 +1683,15 @@ fmt_i64(i64 v, char *out) {
 }
 
 static force_inline i64
-scan_int(const char *s, size_t cap, i64 lo, i64 hi) {
-    signmag sm = scan_mag(s, cap);
+scan_int(const char *s, size_t cap, size_t *end, i32 strict, i64 lo, i64 hi) {
+    size_t e;
+    signmag sm = scan_mag(s, cap, &e);
+    if (end) {
+        *end = e;
+    }
+    if (strict && e != cap) {
+        return 0;
+    }
     if (!sm.ok) {
         return 0;
     }
@@ -1640,12 +1701,29 @@ scan_int(const char *s, size_t cap, i64 lo, i64 hi) {
 }
 
 static force_inline u64
-scan_uint(const char *s, size_t cap, u64 hi) {
-    signmag sm = scan_mag(s, cap);
+scan_uint(const char *s, size_t cap, size_t *end, i32 strict, u64 hi) {
+    size_t e;
+    signmag sm = scan_mag(s, cap, &e);
+    if (end) {
+        *end = e;
+    }
+    if (strict && e != cap) {
+        return 0;
+    }
     if (!sm.ok || (sm.neg && sm.mag)) {
         return 0;
     }
     return sm.mag > hi ? hi : sm.mag;
+}
+
+static no_inline u64
+scan_uint_any(const char *s, size_t cap, size_t *end, u64 hi) {
+    return scan_uint(s, cap, end, 0, hi);
+}
+
+static no_inline i64
+scan_int_any(const char *s, size_t cap, size_t *end, i64 lo, i64 hi) {
+    return scan_int(s, cap, end, 0, lo, hi);
 }
 
 b32
@@ -1656,8 +1734,13 @@ from_u8(u8 v) {
 }
 
 u8
+scan_u8(const char *s, size_t n, size_t *consumed) {
+    return (u8)scan_uint_any(s, n, consumed, UINT8_MAX);
+}
+
+u8
 to_u8(const char *s) {
-    return (u8)scan_uint(s, strlen(s), UINT8_MAX);
+    return (u8)scan_uint(s, strlen(s), NULL, 1, UINT8_MAX);
 }
 
 b32
@@ -1668,8 +1751,13 @@ from_i8(i8 v) {
 }
 
 i8
+scan_i8(const char *s, size_t n, size_t *consumed) {
+    return (i8)scan_int_any(s, n, consumed, INT8_MIN, INT8_MAX);
+}
+
+i8
 to_i8(const char *s) {
-    return (i8)scan_int(s, strlen(s), INT8_MIN, INT8_MAX);
+    return (i8)scan_int(s, strlen(s), NULL, 1, INT8_MIN, INT8_MAX);
 }
 
 b32
@@ -1680,8 +1768,13 @@ from_u16(u16 v) {
 }
 
 u16
+scan_u16(const char *s, size_t n, size_t *consumed) {
+    return (u16)scan_uint_any(s, n, consumed, UINT16_MAX);
+}
+
+u16
 to_u16(const char *s) {
-    return (u16)scan_uint(s, strlen(s), UINT16_MAX);
+    return (u16)scan_uint(s, strlen(s), NULL, 1, UINT16_MAX);
 }
 
 b32
@@ -1692,8 +1785,13 @@ from_i16(i16 v) {
 }
 
 i16
+scan_i16(const char *s, size_t n, size_t *consumed) {
+    return (i16)scan_int_any(s, n, consumed, INT16_MIN, INT16_MAX);
+}
+
+i16
 to_i16(const char *s) {
-    return (i16)scan_int(s, strlen(s), INT16_MIN, INT16_MAX);
+    return (i16)scan_int(s, strlen(s), NULL, 1, INT16_MIN, INT16_MAX);
 }
 
 b32
@@ -1704,8 +1802,13 @@ from_u32(u32 v) {
 }
 
 u32
+scan_u32(const char *s, size_t n, size_t *consumed) {
+    return (u32)scan_uint_any(s, n, consumed, UINT32_MAX);
+}
+
+u32
 to_u32(const char *s) {
-    return (u32)scan_uint(s, strlen(s), UINT32_MAX);
+    return (u32)scan_uint(s, strlen(s), NULL, 1, UINT32_MAX);
 }
 
 b32
@@ -1716,8 +1819,13 @@ from_i32(i32 v) {
 }
 
 i32
+scan_i32(const char *s, size_t n, size_t *consumed) {
+    return (i32)scan_int_any(s, n, consumed, INT32_MIN, INT32_MAX);
+}
+
+i32
 to_i32(const char *s) {
-    return (i32)scan_int(s, strlen(s), INT32_MIN, INT32_MAX);
+    return (i32)scan_int(s, strlen(s), NULL, 1, INT32_MIN, INT32_MAX);
 }
 
 b32
@@ -1728,8 +1836,13 @@ from_u64(u64 v) {
 }
 
 u64
+scan_u64(const char *s, size_t n, size_t *consumed) {
+    return scan_uint_any(s, n, consumed, UINT64_MAX);
+}
+
+u64
 to_u64(const char *s) {
-    return scan_uint(s, strlen(s), UINT64_MAX);
+    return scan_uint(s, strlen(s), NULL, 1, UINT64_MAX);
 }
 
 b32
@@ -1740,6 +1853,11 @@ from_i64(i64 v) {
 }
 
 i64
+scan_i64(const char *s, size_t n, size_t *consumed) {
+    return scan_int_any(s, n, consumed, INT64_MIN, INT64_MAX);
+}
+
+i64
 to_i64(const char *s) {
-    return scan_int(s, strlen(s), INT64_MIN, INT64_MAX);
+    return scan_int(s, strlen(s), NULL, 1, INT64_MIN, INT64_MAX);
 }

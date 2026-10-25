@@ -61,9 +61,6 @@ rt_e2m1(void) {
 static void
 rt_e4m3(void) {
     for (u32 x = 0; x < 256; x++) {
-        if ((x & 0x7F) == 0x7F && x != 0x7F) {
-            continue;
-        }
         e4m3 v = (e4m3)x;
         b32 t = from_e4m3(v);
         e4m3 w = to_e4m3(t.b);
@@ -81,13 +78,12 @@ rt_e4m3(void) {
 static void
 rt_e5m2(void) {
     for (u32 x = 0; x < 256; x++) {
-        if ((x & 0x7C) == 0x7C && (x & 0x3) && x != 0x7E) {
-            continue;
-        }
+        e5m2 want = (e5m2)(((x & 0x7C) == 0x7C && (x & 0x3))
+                               ? 0x7E | (x & 0x80) : x);
         e5m2 v = (e5m2)x;
         b32 t = from_e5m2(v);
         e5m2 w = to_e5m2(t.b);
-        if (w != v) {
+        if (w != want) {
             bad("e5m2 to(from(x)) != x", x);
         }
         b32 t2 = from_e5m2(w);
@@ -101,13 +97,12 @@ rt_e5m2(void) {
 static void
 rt_f16(void) {
     for (u32 x = 0; x <= 0xFFFF; x++) {
-        if ((x & 0x7C00) == 0x7C00 && (x & 0x3FF) && x != 0x7E00) {
-            continue;
-        }
+        f16 want = (f16)(((x & 0x7C00) == 0x7C00 && (x & 0x3FF))
+                             ? 0x7E00 | (x & 0x8000) : x);
         f16 v = (f16)x;
         b32 t = from_f16(v);
         f16 w = to_f16(t.b);
-        if (w != v) {
+        if (w != want) {
             bad("f16 to(from(x)) != x", x);
         }
         b32 t2 = from_f16(w);
@@ -121,13 +116,12 @@ rt_f16(void) {
 static void
 rt_bf16(void) {
     for (u32 x = 0; x <= 0xFFFF; x++) {
-        if ((x & 0x7F80) == 0x7F80 && (x & 0x7F) && x != 0x7FC0) {
-            continue;
-        }
+        bf16 want = (bf16)(((x & 0x7F80) == 0x7F80 && (x & 0x7F))
+                               ? 0x7FC0 | (x & 0x8000) : x);
         bf16 v = (bf16)x;
         b32 t = from_bf16(v);
         bf16 w = to_bf16(t.b);
-        if (w != v) {
+        if (w != want) {
             bad("bf16 to(from(x)) != x", x);
         }
         b32 t2 = from_bf16(w);
@@ -330,7 +324,7 @@ rt_f32(void) {
         0x00000000u, 0x80000000u,                // +-0
         0x3F800000u, 0xBF800000u,                // +-1
         0x7F800000u, 0xFF800000u,                // +-inf
-        0x7FC00000u,                             // nan
+        0x7FC00000u, 0xFFC00000u,                // +-nan
         0x00000001u, 0x80000001u,                // min subnormal
         0x007FFFFFu, 0x807FFFFFu,                // max subnormal
         0x00800000u, 0x80800000u,                // min normal
@@ -392,9 +386,8 @@ rt_f32(void) {
     }
     for (u64 n = 0; n < SAMPLES; n++) {
         u32 bits = (u32)rnd();
-        if ((bits & 0x7F800000u) == 0x7F800000u &&
-            (bits & 0x007FFFFFu) && bits != 0x7FC00000u) {
-            continue;
+        if ((bits & 0x7F800000u) == 0x7F800000u && (bits & 0x007FFFFFu)) {
+            bits = 0x7FC00000u | (bits & 0x80000000u);
         }
         chk_f32(bits);
     }
@@ -512,7 +505,7 @@ rt_f64(void) {
         0x0000000000000000ull, 0x8000000000000000ull,   // +-0
         0x3FF0000000000000ull, 0xBFF0000000000000ull,   // +-1
         0x7FF0000000000000ull, 0xFFF0000000000000ull,   // +-inf
-        0x7FF8000000000000ull,                          // nan
+        0x7FF8000000000000ull, 0xFFF8000000000000ull,   // +-nan
         0x0000000000000001ull, 0x8000000000000001ull,   // min subnormal
         0x000FFFFFFFFFFFFFull, 0x800FFFFFFFFFFFFFull,   // max subnormal
         0x0010000000000000ull, 0x8010000000000000ull,   // min normal
@@ -575,12 +568,79 @@ rt_f64(void) {
     for (u64 n = 0; n < SAMPLES; n++) {
         u64 bits = rnd();
         if ((bits & 0x7FF0000000000000ull) == 0x7FF0000000000000ull &&
-            (bits & 0x000FFFFFFFFFFFFFull) && bits != 0x7FF8000000000000ull) {
-            continue;
+            (bits & 0x000FFFFFFFFFFFFFull)) {
+            bits = 0x7FF8000000000000ull | (bits & 0x8000000000000000ull);
         }
         chk_f64(bits);
     }
     printf("f64 %llu values\n", (unsigned long long)(nchk - start));
+}
+
+static void
+rt_nan(void) {
+    u64 start = nchk;
+    for (u32 x = 0; x <= 0xFFFF; x++) {
+        if ((x & 0x7C00) == 0x7C00 && (x & 0x3FF)) {
+            nchk++;
+            const char *want = (x & 0x8000) ? "-nan" : "nan";
+            b32 t = from_f16((f16)x);
+            if (strcmp(t.b, want) != 0) {
+                bad("f16 nan text", x);
+            }
+            if (to_f16(t.b) != (f16)(0x7E00 | (x & 0x8000))) {
+                bad("f16 nan parse", x);
+            }
+        }
+        if ((x & 0x7F80) == 0x7F80 && (x & 0x7F)) {
+            nchk++;
+            const char *want = (x & 0x8000) ? "-nan" : "nan";
+            b32 t = from_bf16((bf16)x);
+            if (strcmp(t.b, want) != 0) {
+                bad("bf16 nan text", x);
+            }
+            if (to_bf16(t.b) != (bf16)(0x7FC0 | (x & 0x8000))) {
+                bad("bf16 nan parse", x);
+            }
+        }
+    }
+    for (u32 s = 0; s < 2; s++) {
+        const char *want = s ? "-nan" : "nan";
+        u32 canon = 0x7FC00000u | (s << 31);
+        for (u32 p = 1; p <= 0x007FFFFFu; p++) {
+            nchk++;
+            u32 bits = 0x7F800000u | (s << 31) | p;
+            b32 t = from_f32(bits_f32(bits));
+            if (strcmp(t.b, want) != 0) {
+                bad("f32 nan text", bits);
+            }
+            if (f32_bits(to_f32(t.b)) != canon) {
+                bad("f32 nan parse", bits);
+            }
+        }
+    }
+    static const u64 pay[] = {
+        1ull, 2ull, 3ull,
+        0x123456789ABCDull,
+        0x7FFFFFFFFFFFFull,
+        0x8000000000000ull,
+        0xFFFFFFFFFFFFFull,
+    };
+    for (u32 s = 0; s < 2; s++) {
+        const char *want = s ? "-nan" : "nan";
+        u64 canon = 0x7FF8000000000000ull | ((u64)s << 63);
+        for (u32 i = 0; i < COUNT(pay); i++) {
+            nchk++;
+            u64 bits = 0x7FF0000000000000ull | ((u64)s << 63) | pay[i];
+            b32 t = from_f64(bits_f64(bits));
+            if (strcmp(t.b, want) != 0) {
+                bad("f64 nan text", bits);
+            }
+            if (f64_bits(to_f64(t.b)) != canon) {
+                bad("f64 nan parse", bits);
+            }
+        }
+    }
+    printf("nan %llu values\n", (unsigned long long)(nchk - start));
 }
 
 int
@@ -601,6 +661,7 @@ main(void) {
     rt_u64();
     rt_i64();
     rt_f64();
+    rt_nan();
     printf("%d failures: %s\n", fails, fails ? "FAIL" : "PASS");
     return fails;
 }
