@@ -358,6 +358,11 @@ pattern_text(int ebits, int sbits, fmt_kind kind, unsigned u, char *out) {
     if (sign) {
         *w++ = '-';
     }
+    char best[40];
+    int found = 0;
+    int best_len = 0;
+    int best_cls = 0;
+    int best_k = 0;
     for (int k = 1; k <= 7; k++) {
         char tmp[64];
         snprintf(tmp, sizeof tmp, "%.*e", k - 1, v);
@@ -381,15 +386,40 @@ pattern_text(int ebits, int sbits, fmt_kind kind, unsigned u, char *out) {
             q0 = -q0;
         }
         int t = q0 - k + 1;
-        const uint64_t cs[3] = { n0, n0 - 1, n0 + 1 };
-        for (int i = 0; i < (int)COUNT(cs); i++) {
-            if (rounds_to(cs[i], t, m, E, binade_low)) {
-                fmt_text(cs[i], t, w);
-                return;
+        uint64_t base = 1;
+        for (int j = 0; j < k; j++) {
+            base *= 10;
+        }
+        uint64_t cs[7];
+        int ts[7];
+        int cls[7];
+        int nc = 0;
+        cs[nc] = n0;     ts[nc] = t; cls[nc++] = 0;
+        cs[nc] = n0 - 1; ts[nc] = t; cls[nc++] = 0;
+        cs[nc] = n0 + 1; ts[nc] = t; cls[nc++] = 0;
+        for (int j = 1; j <= 4; j++) {
+            cs[nc] = base - (uint64_t)j; ts[nc] = t - 1; cls[nc++] = 1;
+        }
+        for (int i = 0; i < nc; i++) {
+            if (rounds_to(cs[i], ts[i], m, E, binade_low)) {
+                char text[40];
+                fmt_text(cs[i], ts[i], text);
+                int len = (int)strlen(text);
+                if (!found || len < best_len ||
+                    (len == best_len &&
+                     (cls[i] < best_cls ||
+                      (cls[i] == best_cls && k < best_k)))) {
+                    memcpy(best, text, sizeof best);
+                    best_len = len;
+                    best_cls = cls[i];
+                    best_k = k;
+                    found = 1;
+                }
             }
         }
     }
-    must(0, "a pattern has no round-trip text");
+    must(found, "a pattern has no round-trip text");
+    memcpy(w, best, strlen(best) + 1);
 }
 
 int
