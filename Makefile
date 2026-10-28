@@ -4,6 +4,8 @@ tests: tests/roundtrip tests/parse
 	./tests/roundtrip
 	./tests/parse
 
+tests/roundtrip tests/parse: snrt.c snrt.h consts.h
+
 consts.h: gen_consts
 	./gen_consts
 
