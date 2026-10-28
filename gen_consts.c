@@ -548,7 +548,10 @@ main(void) {
             fprintf(f, "static const uint64_t %s_word[%u] = {\n", name, npat);
             for (unsigned u = 0; u < npat; u++) {
                 uint64_t w = 0;
-                memcpy(&w, rows[u], strlen(rows[u]) + 1);
+                unsigned len = (unsigned)strlen(rows[u]);
+                for (unsigned k = 0; k <= len; k++) {
+                    w |= (uint64_t)(unsigned char)rows[u][k] << (8 * k);
+                }
                 fprintf(f, "    0x%016llxull,\n", (unsigned long long)w);
             }
             fprintf(f, "};\n\n");

@@ -10,6 +10,14 @@
 #define __has_builtin(x) 0
 #endif
 
+#ifndef SNRT_BIG_ENDIAN
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#define SNRT_BIG_ENDIAN 1
+#else
+#define SNRT_BIG_ENDIAN 0
+#endif
+#endif
+
 #if __has_builtin(__builtin_expect)
 #define likely(x)   __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
@@ -851,23 +859,32 @@ dec_len(u64 v) {
     return n + (v >= pow10_u64[n]);
 }
 
-#if __has_attribute(may_alias)
-
-typedef u16 u16a __attribute__((may_alias, aligned(1)));
-
-static void
-put_pair(char *w, const u16 *tbl, u64 i) {
-    *(u16a *)w = tbl[i];
-}
-
-#else
-
-static void
-put_pair(char *w, const u16 *tbl, u64 i) {
-    memcpy(w, &tbl[i], 2);
-}
-
+static force_inline u64
+get_word(const char *s) {
+    u64 v;
+    memcpy(&v, s, sizeof v);
+#if SNRT_BIG_ENDIAN
+    v = __builtin_bswap64(v);
 #endif
+    return v;
+}
+
+static force_inline void
+put_word(char *w, u64 v) {
+#if SNRT_BIG_ENDIAN
+    v = __builtin_bswap64(v);
+#endif
+    memcpy(w, &v, sizeof v);
+}
+
+static force_inline void
+put_pair(char *w, const u16 *tbl, u64 i) {
+    u16 v = tbl[i];
+#if SNRT_BIG_ENDIAN
+    v = __builtin_bswap16(v);
+#endif
+    memcpy(w, &v, sizeof v);
+}
 
 static u64
 fmt_n(u64 v, i32 k, char *w) {
@@ -1110,11 +1127,7 @@ typedef struct {
 
 static i32
 digits8(const char *s, u64 *out) {
-    u64 v;
-    memcpy(&v, s, sizeof v);
-#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-    v = __builtin_bswap64(v);
-#endif
+    u64 v = get_word(s);
     u64 x = v ^ 0x3030303030303030ull;
     u64 bad = (x & 0xF0F0F0F0F0F0F0F0ull)
             | (((x & 0x0F0F0F0F0F0F0F0Full) + 0x0606060606060606ull)
@@ -1530,7 +1543,7 @@ to_bf16(const char *s) {
 b32
 from_e5m2(e5m2 bits) {
     b32 r;
-    memcpy(r.b, &e5m2_word[bits], sizeof e5m2_word[0]);
+    put_word(r.b, e5m2_word[bits]);
     return r;
 }
 
@@ -1580,7 +1593,7 @@ from_e2m1(e2m1 bits) {
     if (x >> (E2M1_EBITS + E2M1_SBITS)) {
         w = (w << 8) | '-';
     }
-    memcpy(r.b, &w, sizeof w);
+    put_word(r.b, w);
     return r;
 }
 
